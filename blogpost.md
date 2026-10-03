@@ -1,7 +1,5 @@
 # What a Kaggle competition taught us about finding data citations — and what we're doing about it
 
-*Briefing note, September 2026 — drafted as a blog post*
-
 Data citations link research papers to the datasets they create or reuse. They remain one of the most under-recorded links in the scholarly record. In 2025 the [Make Data Count](https://makedatacount.org/) initiative ran a [Kaggle competition](https://www.kaggle.com/competitions/make-data-count-finding-data-references) in which more than 1,200 teams worked to find dataset references in scientific full text. Each reference had to be classified as **Primary** (data generated for that paper) or **Secondary** (data reused from elsewhere). The five winning solutions are, in effect, independently developed and well-tested blueprints for the problem.
 
 This note reviews those five solutions, reports an audit of the Dimensions extraction pipeline against their lessons, and describes how we rebuilt it taking findings from all five.
