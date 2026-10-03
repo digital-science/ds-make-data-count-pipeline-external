@@ -44,7 +44,7 @@ The winners' biggest lesson — *measure recall against external ground truth be
 
 PDB identifiers need a different check. Chromosome-band notation ("7q22.1", "19q13.2") and glycan notation ("Galα1-3Gal") contain strings that are valid PDB IDs, so a format check cannot catch them. The pipeline reads the surrounding text instead and excludes about 12,100 such mentions.
 
-**Where that leaves us.** The first release (September 2026) holds **8.75 million data citations across 2.08 million articles and 4.5 million distinct datasets**. 92% are classified Primary or Secondary. The public release gives each citation's article, dataset, repository and classification. A reproducibility layer (accesible via the Digital Science SRAD program,) records which rule decided each citation, that rule's definition and measured precision, and where in the article the mention sits — plus the sentence itself for open-access articles.
+**Where that leaves us.** The latest release (October 2026) holds **8.75 million data citations across 2.08 million articles and 4.5 million distinct datasets**. 92% are classified Primary or Secondary. The public release gives each citation's article, dataset, repository and classification. A reproducibility layer (accesible via the Digital Science SRAD program,) records which rule decided each citation, that rule's definition and measured precision, and where in the article the mention sits — plus the sentence itself for open-access articles.
 
 ## How it measures up
 
@@ -55,14 +55,14 @@ We therefore report two plainer measures against two gold sets. *Agreement* is t
 | gold set | pairs | agreement | coverage |
 | --- | --- | --- | --- |
 | Kaggle competition labels | 463 | 0.951 | 0.786 |
-| Community-corrected labels | 1,058 | 0.960 | 0.910 |
-| Both combined | 1,063 | 0.962 | 0.908 |
+| Community-corrected labels | 1,056 | 0.959 | 0.910 |
+| Both combined | 1,061 | 0.962 | 0.908 |
 
 Where we give a label, it matches both label sets about equally often; the difference is coverage. The two gold sets disagree with each other on 33 shared pairs, which are dropped from the combined score — so agreement of about 0.96 is close to the practical ceiling.
 
 The benchmark has one blind spot we should state plainly. The gold sets contain almost none of the GenBank protein citations and few GenBank nucleotide ones, so GenBank citations decided from repository records rest on rule-level evidence, published in the reproducibility layer, rather than on the benchmark.
 
-Our coverage of any label set is capped by two deliberate choices a competition doesn't reward. We only cover articles whose full text we hold, and we refuse to guess: the 686,721 citations we cannot decide ship as Unclassified rather than as a coin-flip. A leaderboard penalises silence; a production dataset earns trust with it.
+Our coverage of any label set is capped by two deliberate choices a competition doesn't reward. We only cover articles whose full text we hold, and we refuse to guess: the 687,407 citations we cannot decide ship as Unclassified rather than as a coin-flip. A leaderboard penalises silence; a production dataset earns trust with it.
 
 Classification ended up dominated not by machine learning but by something better: **repository evidence**. For millions of pairs, the deposit record itself — its submitting authors, its date, the publication it links — settles primary versus secondary at 0.97–1.00 measured precision. That is why the pipeline fetches that evidence for every cited GenBank record, proteins included.
 
@@ -77,12 +77,12 @@ Data-availability statements — where data citations most often sit — are fai
 Other limitations we publish alongside the data:
 
 - **Europe PMC text-mined terms.** The upstream files have been empty since before 4 September. The release uses the last good copy (loaded 21 September), so annotations for five accession families are stale. There is also no licence statement at the download location. Both are open with Europe PMC.
-- **GenBank residue.** 332,162 GenBank citations remain Unclassified. About 242,000 accessions sit in records with neither submitters nor a publication link — largely EST, GSS and patent records from the 1990s and 2000s. No source we can reach holds their attribution.
-- **Dataset DOIs.** 281,532 DOI citations (20%) remain Unclassified, mostly reference-list mentions with no location signal. This should improve with the GROBID upgrade described above: recovering the availability statements older models miss gives many of these mentions the location they lack.
+- **GenBank residue.** 332,092 GenBank citations remain Unclassified. About 242,000 accessions sit in records with neither submitters nor a publication link — largely EST, GSS and patent records from the 1990s and 2000s. No source we can reach holds their attribution.
+- **Dataset DOIs.** 282,312 DOI citations (20%) remain Unclassified, mostly reference-list mentions with no location signal. This should improve with the GROBID upgrade described above: recovering the availability statements older models miss gives many of these mentions the location they lack.
 
 ## What's next
 
-The pipeline is built, benchmarked and runs unattended. A monthly refresh on AWS Lambda and Step Functions starts at 06:00 UTC on the 2nd of each month and re-sweeps the full corpus in about seven hours. The next release is due on 2 October 2026. What follows is release engineering and community:
+The pipeline is built, benchmarked and runs unattended. A monthly refresh on AWS Lambda and Step Functions starts at 06:00 UTC on the 2nd of each month and re-sweeps the full corpus in about nine hours. The next release is due on 2 November 2026. What follows is release engineering and community:
 
 1. **A public dataset** — every data citation from an article with a DOI, in six plain columns: the article's DOI, the dataset's DOI or accession id, which of the two it is, the repository, the citation type (Primary, Secondary or Unclassified) and the release. It can be joined from either end: by article, or by dataset. It is on BigQuery via the community-run ORION-DBs catalogue and refreshed monthly, released under a CC0 licence. The full research-grade dataset, including how each citation was decided and the sentences behind it, is available to scientometrics researchers through Digital Science's SRAD programme.
 2. **A community gold set instead of a private one.** The release publishes measured precision per rule, the independently adjudicated seed cases, and an open adjudication route. We invite the community that already corrected the competition's labels once to build the benchmark this field lacks. Contributed labels feed the next release's *measured* precision.
