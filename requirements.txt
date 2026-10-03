@@ -1,0 +1,5 @@
+google-cloud-bigquery>=3.20
+pandas>=2.0
+pyyaml>=6.0
+dimcli>=1.4        # prefilter only; requires a Dimensions Analytics API subscription
+pyarrow>=14.0      # parquet checkpoints

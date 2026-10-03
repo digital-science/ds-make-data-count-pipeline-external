@@ -1,0 +1,47 @@
+{
+  "description": "Deposition-vs-reuse cue lexicon for classifying data-citation mentions as Primary/Secondary from sentence context. Applied to the sentence containing the accession/DOI. RE2-compatible, case-insensitive via (?i). Scoring: sum weights (primary positive, secondary negative) over all of a pair's mention sentences; classify Primary if score >= +2, Secondary if <= -2, else unresolved -> LLM cascade. Location modifiers applied separately.",
+  "version": "2026-08-11",
+  "primary_cues": [
+    {"id": "deposited",        "pattern": "(?i)\\bdeposit(ed|ion)\\b",                                        "weight": 2.0, "note": "the canonical deposition verb"},
+    {"id": "this_study_gen",   "pattern": "(?i)\\b(generated|produced|created|sequenced|collected)\\b.{0,40}\\b(in|for|during)\\b.{0,15}\\bthis (study|work|paper|article)\\b", "weight": 2.0},
+    {"id": "newly_generated",  "pattern": "(?i)\\bnewly (generated|sequenced|determined|assembled|obtained)\\b", "weight": 2.0},
+    {"id": "reported_here",    "pattern": "(?i)\\b(reported|presented|described)\\b.{0,20}\\bin this (paper|study|work|article)\\b", "weight": 2.0},
+    {"id": "datasets_generated","pattern": "(?i)\\bdata(sets)? (generated|produced)\\b",                       "weight": 2.0, "note": "standard DAS phrasing: 'The datasets generated ... are available'"},
+    {"id": "submitted_to",     "pattern": "(?i)\\bsubmitted to\\b",                                            "weight": 1.0, "note": "usually repository submission when co-mentioned with an accession"},
+    {"id": "made_available",   "pattern": "(?i)\\b(are|is|were|was|been|be) (made )?(freely |publicly |openly )?(available|accessible) (under|at|in|through|via|from)\\b", "weight": 1.0, "note": "own-data DAS phrasing; weaker because reuse statements also use it"},
+    {"id": "uploaded",         "pattern": "(?i)\\bupload(ed)? (to|in|at)\\b",                                  "weight": 1.0},
+    {"id": "archived",         "pattern": "(?i)\\barchived (in|at|under)\\b",                                  "weight": 1.0},
+    {"id": "our_data",         "pattern": "(?i)\\bour (raw )?(data|dataset|sequences|reads|results)\\b",       "weight": 1.0},
+    {"id": "accession_assigned","pattern": "(?i)\\baccession (number|code|no\\.?)s? [A-Z0-9]",                 "weight": 0.5, "note": "'under accession number X' — weak alone, both directions use it"},
+    {"id": "can_be_accessed",  "pattern": "(?i)\\bcan be (accessed|found|obtained) (at|under|via|in)\\b",      "weight": 0.5}
+  ],
+  "secondary_cues": [
+    {"id": "downloaded",       "pattern": "(?i)\\bdownload(ed)?\\b",                                           "weight": 2.0},
+    {"id": "obtained_from",    "pattern": "(?i)\\bobtained from\\b",                                           "weight": 2.0},
+    {"id": "retrieved",        "pattern": "(?i)\\bretriev(ed|al)\\b",                                          "weight": 2.0},
+    {"id": "prev_published",   "pattern": "(?i)\\bpreviously (published|described|reported|generated|sequenced|deposited)\\b", "weight": 2.0},
+    {"id": "reanalyzed",       "pattern": "(?i)\\bre-?analy[sz](ed|is)\\b",                                    "weight": 2.0},
+    {"id": "reference_genome", "pattern": "(?i)\\breference (genome|assembly|sequence|transcriptome)\\b",      "weight": 2.0},
+    {"id": "aligned_mapped",   "pattern": "(?i)\\b(aligned|mapped) (to|against|with)\\b",                      "weight": 1.5},
+    {"id": "from_repository",  "pattern": "(?i)\\bfrom (the )?(NCBI|GenBank|GEO|SRA|ENA|DDBJ|PDB|UniProt|Ensembl|ArrayExpress|Gene Expression Omnibus|Protein Data Bank|Sequence Read Archive)\\b", "weight": 1.5, "note": "'sequences from GenBank' — reuse framing"},
+    {"id": "accessed_on",      "pattern": "(?i)\\baccessed (on|in) (january|february|march|april|may|june|july|august|september|october|november|december|\\d{4})", "weight": 1.5, "note": "access-date phrasing marks retrieval of existing data"},
+    {"id": "existing_data",    "pattern": "(?i)\\b(existing|published|publicly available|previously available) (data|datasets|sequences|structures|genomes)\\b", "weight": 1.0},
+    {"id": "used_as",          "pattern": "(?i)\\b(was|were) used as\\b",                                      "weight": 1.0},
+    {"id": "based_on_pub",     "pattern": "(?i)\\bbased on (the )?(published|available|existing)\\b",          "weight": 1.0},
+    {"id": "compared",         "pattern": "(?i)\\bcompar(ed|ison) (with|to|against)\\b",                       "weight": 0.5},
+    {"id": "included_from",    "pattern": "(?i)\\bincluded (in (the|our) (analysis|dataset)|from)\\b",         "weight": 0.5}
+  ],
+  "location_modifiers": [
+    {"location": "availability_sentences", "direction": "primary",   "weight": 1.0, "note": "a data-availability statement in the generating paper overwhelmingly describes its own deposits"},
+    {"location": "availability_titles",    "direction": "primary",   "weight": 1.0},
+    {"location": "references_titles",      "direction": "secondary", "weight": 1.0, "note": "an ID that only resolves via a bibliography entry points at someone else's deposit"},
+    {"location": "references_text_titles", "direction": "secondary", "weight": 1.0},
+    {"location": "references_uris",        "direction": "secondary", "weight": 1.0}
+  ],
+  "notes": [
+    "RE2 has no lookbehind/lookahead; all patterns are plain alternation/quantifier regexes.",
+    "Cues score the SENTENCE, aggregated per (publication_id, dataset_id) by summing across all mention sentences, then optionally smoothed per (publication_id, family) by majority.",
+    "Thresholds (+2/-2) chosen so a single strong cue OR two medium cues resolve a pair; tune against the gold set.",
+    "Known tensions: 'made available under' appears in both own-deposit DAS and reuse statements (kept weak); 'previously deposited' is Secondary despite containing 'deposited' — the secondary cue outweighs it only via prev_published, so sentences with both score ~0 and fall through to the LLM, which is the right failure mode."
+  ]
+}

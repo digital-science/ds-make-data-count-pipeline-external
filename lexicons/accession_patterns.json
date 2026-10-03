@@ -1,0 +1,202 @@
+{
+  "GEO": {
+    "pattern": "^G(PL|SM|SE|DS)\\d+$",
+    "source": "identifiers.org:geo",
+    "example": "GSE37569",
+    "fp_risk": "low",
+    "fp_notes": "Distinctive prefix. GSE/GSM/GPL/GDS covered by one namespace. Rarely collides in prose.",
+    "default_type_prior": "primary-leaning"
+  },
+  "SRA": {
+    "pattern": "^[SED]R[APRSXZ]\\d{6,}$",
+    "source": "identifiers.org:insdc.sra (tightened: \\d+ -> \\d{6,}; real SRA accessions are 6+ digits)",
+    "example": "SRR1234567",
+    "fp_risk": "low",
+    "fp_notes": "Covers SRR/SRX/SRP/SRS/SRA/SRZ + ERR/ERX/ERP/ERS + DRR/DRX/DRP/DRS. identifiers.org allows any digit count; 6-digit minimum removes short false hits like 'ERP123'.",
+    "default_type_prior": "primary-leaning"
+  },
+  "BioProject": {
+    "pattern": "^PRJ[DEN][A-Z]\\d+$",
+    "source": "identifiers.org:bioproject",
+    "example": "PRJNA257197",
+    "fp_risk": "low",
+    "fp_notes": "PRJNA (NCBI), PRJEB (ENA), PRJDB (DDBJ). Distinctive prefix.",
+    "default_type_prior": "primary-leaning"
+  },
+  "BioSample": {
+    "pattern": "^SAM[NED](\\w)?\\d+$",
+    "source": "identifiers.org:biosample",
+    "example": "SAMN02953603",
+    "fp_risk": "low",
+    "fp_notes": "SAMN (NCBI), SAMEA (EBI), SAMD (DDBJ). Optional letter handles SAMEA.",
+    "default_type_prior": "primary-leaning"
+  },
+  "GenBank_ENA_DDBJ": {
+    "pattern": "^([A-Z]\\d{5}|[A-Z]{2}\\d{6}|[A-Z]{4,6}\\d{8,10}|[A-J][A-Z]{2}\\d{5}|[SED]R[APRSXZ]\\d{6,})(\\.\\d+)?$",
+    "source": "identifiers.org:insdc",
+    "example": "MN908947.3",
+    "fp_risk": "high",
+    "fp_notes": "Letter+digit shapes collide heavily with grant numbers (e.g. 'Y21026'), museum specimen codes, catalogue numbers, cell-line names. Rod Page found ~49% of a sampled 1,000 corpus 'GenBank' accessions unknown to GenBank. Require context cue (GenBank/ENA/DDBJ/accession nearby) or validate against ENA/NCBI. SRA run/study/sample shapes ([SED]R[APRSXZ]\\d{6,}) were added 2026-09-03: they are unambiguous, do not collide with any of the FP shapes above (verified: the change newly accepts only SRA-shaped strings), and excluding them silently dropped 143,933 citations as regex_invalid -- including ones the repository-evidence tier (sql/66-68) is built to decide, since it filters FOR SRA shapes and sra_bq_metadata exists for exactly that.",
+    "default_type_prior": "mixed"
+  },
+  "RefSeq": {
+    "pattern": "^(((WP|AC|AP|NC|NG|NM|NP|NR|NT|NW|XM|XP|XR|YP|ZP)_\\d+)|(NZ_[A-Z]{2,4}\\d+))(\\.\\d+)?$",
+    "source": "identifiers.org:refseq",
+    "example": "NC_045512.2",
+    "fp_risk": "low",
+    "fp_notes": "Underscore prefix pattern is distinctive.",
+    "default_type_prior": "secondary-leaning"
+  },
+  "PDB": {
+    "pattern": "^[0-9][A-Za-z0-9]{3}$",
+    "source": "identifiers.org:pdb",
+    "example": "6VXX",
+    "fp_risk": "high",
+    "fp_notes": "Digit + 3 alphanumerics matches '24hr', '2019', '1000', figure labels, mouse-line codes. Rod Page: 18% of corpus PDB IDs failed even this format; only ~71% of the rest existed in PDB. Only accept with a 'PDB' context cue and/or existence check; consider requiring at least one letter. New extended format pdb_XXXXXXXX not covered.",
+    "default_type_prior": "mixed"
+  },
+  "UniProt": {
+    "pattern": "^([A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2}|[OPQ][0-9][A-Z0-9]{3}[0-9])(\\.\\d+)?(-\\d+)?$",
+    "source": "identifiers.org:uniprot (cleaned: the registry pattern literally contains commas/spaces inside character classes, e.g. '[A-Z, 0-9]', and an unanchored alternation; this is the corrected strict form of the official UniProt regex)",
+    "example": "P0DP23",
+    "fp_risk": "medium",
+    "fp_notes": "6-char accessions (P12345, Q9Y6K1) can collide with product codes and other short alphanumerics. 10-char A0A... accessions are distinctive.",
+    "default_type_prior": "secondary-leaning"
+  },
+  "Ensembl": {
+    "pattern": "^ENS[A-Z]{0,5}(E|FM|G|GT|P|R|T)\\d{11}(\\.\\d+)?$",
+    "source": "identifiers.org:ensembl (stricter: the registry pattern ends with a catch-all alternative '[A-Z_a-z0-9]+(\\.)?(t)?(\\d+)?([a-z])?' that matches almost any token; this form keeps only the ENS-stable-ID shape incl. species infixes like ENSMUSG)",
+    "example": "ENSG00000139618",
+    "fp_risk": "low",
+    "fp_notes": "ENS prefix + 11 digits is highly distinctive. Non-ENS Ensembl IDs (FlyBase FBgn..., yeast systematic names) deliberately not covered here.",
+    "default_type_prior": "secondary-leaning"
+  },
+  "ArrayExpress": {
+    "pattern": "^E-[A-Z]{4}-\\d+$",
+    "source": "identifiers.org:arrayexpress (stricter: registry '^[AEP]-\\w{4}-\\d+$' also matches array designs A-* and protocols P-*, and \\w permits lowercase/underscore; experiments E-XXXX-n are what get cited as data)",
+    "example": "E-MTAB-10217",
+    "fp_risk": "low",
+    "fp_notes": "E-MTAB, E-GEOD, E-MEXP, E-PROT etc. Distinctive shape.",
+    "default_type_prior": "primary-leaning"
+  },
+  "PRIDE": {
+    "pattern": "^PXD\\d{6}$",
+    "source": "identifiers.org:px (stricter: registry allows optional 'R' prefix for reprocessed RPXD datasets; drop it for citation mining)",
+    "example": "PXD012345",
+    "fp_risk": "low",
+    "fp_notes": "Distinctive prefix, fixed width.",
+    "default_type_prior": "primary-leaning"
+  },
+  "MetaboLights": {
+    "pattern": "^MTBLS\\d+$",
+    "source": "identifiers.org:metabolights (stricter: registry '^MTBL[CS]\\d+$' also matches MTBLC compound records, which are reference entries, not study deposits)",
+    "example": "MTBLS718",
+    "fp_risk": "low",
+    "fp_notes": "Distinctive prefix.",
+    "default_type_prior": "primary-leaning"
+  },
+  "ChEMBL": {
+    "pattern": "^CHEMBL\\d+$",
+    "source": "identifiers.org:chembl.compound (same shape also covers chembl.target)",
+    "example": "CHEMBL308052",
+    "fp_risk": "low",
+    "fp_notes": "Distinctive prefix.",
+    "default_type_prior": "secondary-leaning"
+  },
+  "InterPro": {
+    "pattern": "^IPR\\d{6}$",
+    "source": "identifiers.org:interpro",
+    "example": "IPR000100",
+    "fp_risk": "low",
+    "fp_notes": "Fixed width, distinctive prefix.",
+    "default_type_prior": "secondary-leaning"
+  },
+  "Pfam": {
+    "pattern": "^PF\\d{5}$",
+    "source": "identifiers.org:pfam",
+    "example": "PF00069",
+    "fp_risk": "medium",
+    "fp_notes": "Short prefix; 'PF' + digits occurs in product/part codes. Usually cited with 'Pfam' nearby.",
+    "default_type_prior": "secondary-leaning"
+  },
+  "dbGaP": {
+    "pattern": "^phs\\d{6}(\\.v\\d+\\.p\\d+)?$",
+    "source": "identifiers.org:dbgap (stricter: registry leaves the dots unescaped, '(.v\\d+.p\\d+)?')",
+    "example": "phs000768.v2.p1",
+    "fp_risk": "low",
+    "fp_notes": "Lowercase 'phs' + 6 digits is distinctive; keep case-sensitive.",
+    "default_type_prior": "primary-leaning"
+  },
+  "EMDB": {
+    "pattern": "^EMD-\\d{4,5}$",
+    "source": "identifiers.org:emdb",
+    "example": "EMD-30210",
+    "fp_risk": "medium",
+    "fp_notes": "Collides with Merck compound codes (e.g. EMD-121974/cilengitide have 6 digits, but 4-5 digit EMD compound codes exist in older pharmacology literature). Context cue 'EMDB' or 'cryo-EM' helps.",
+    "default_type_prior": "primary-leaning"
+  },
+  "EMPIAR": {
+    "pattern": "^EMPIAR-\\d{5,}$",
+    "source": "identifiers.org:empiar",
+    "example": "EMPIAR-10002",
+    "fp_risk": "low",
+    "fp_notes": "Distinctive prefix.",
+    "default_type_prior": "primary-leaning"
+  },
+  "Cellosaurus": {
+    "pattern": "^CVCL_[A-Z0-9]{4}$",
+    "source": "identifiers.org:cellosaurus (stricter: registry appends an artifact '(\\.txt)?' suffix)",
+    "example": "CVCL_0030",
+    "fp_risk": "low",
+    "fp_notes": "Distinctive prefix. Note: cites a cell line (a research resource), not a dataset deposit.",
+    "default_type_prior": "secondary-leaning"
+  },
+  "dbSNP": {
+    "pattern": "^rs\\d+$",
+    "source": "identifiers.org:dbsnp",
+    "example": "rs121909098",
+    "fp_risk": "high",
+    "fp_notes": "Extremely common token shape; rsIDs are gene-variant references, not dataset citations. Several top Kaggle solutions excluded rs* entirely. Keep case-sensitive lowercase 'rs'.",
+    "default_type_prior": "secondary-leaning"
+  },
+  "GISAID": {
+    "pattern": "^EPI_ISL_\\d+$",
+    "source": "convention (no identifiers.org namespace found for GISAID isolates; pattern matches EuropePMC/Kaggle usage)",
+    "example": "EPI_ISL_402124",
+    "fp_risk": "low",
+    "fp_notes": "Distinctive prefix. GISAID also uses EPI\\d+ segment IDs and EPI_SET_ dataset IDs, not covered here.",
+    "default_type_prior": "mixed"
+  },
+  "TCIA": {
+    "pattern": "^10\\.7937/[A-Za-z0-9._/-]+$",
+    "source": "convention (TCIA has no accession scheme; collections are cited via DOIs under prefix 10.7937; no identifiers.org namespace found)",
+    "example": "10.7937/K9/TCIA.2016.PXZ9E3TL",
+    "fp_risk": "low",
+    "fp_notes": "DOI-shaped; route through the DOI pipeline rather than accession matching.",
+    "default_type_prior": "mixed"
+  },
+  "Dryad": {
+    "pattern": "^10\\.5061/dryad\\.[a-z0-9]+$",
+    "source": "convention (Dryad IDs are DOIs under prefix 10.5061; the legacy 'doi:10.5061/dryad.xxxx' suffix form is the only non-URL variant seen in text)",
+    "example": "10.5061/dryad.8515",
+    "fp_risk": "low",
+    "fp_notes": "DOI-shaped; route through the DOI pipeline. Bare 'dryad.8515' occasionally appears in older articles.",
+    "default_type_prior": "primary-leaning"
+  },
+  "EGA_study": {
+    "pattern": "^EGAS\\d{11}$",
+    "source": "identifiers.org:ega.study (EGAD datasets follow ^EGAD\\d{11}$ under ega.dataset)",
+    "example": "EGAS00000000001",
+    "fp_risk": "low",
+    "fp_notes": "Distinctive shape, but note: the 1st-place Kaggle team excluded EGA as false-positive-prone / low-yield in the competition data.",
+    "default_type_prior": "primary-leaning"
+  },
+  "GCA_assembly": {
+    "pattern": "^GC[AF]_\\d{9}(\\.\\d+)?$",
+    "source": "identifiers.org:insdc.gca (GCA_ only there: ^GCA_[0-9]{9}(\\.[0-9]+)?$; GCF_ RefSeq assemblies added by analogy)",
+    "example": "GCA_000155495.1",
+    "fp_risk": "high",
+    "fp_notes": "Format itself is distinctive, but genome-assembly accessions overwhelmingly denote reuse of reference genomes, not new data; top Kaggle solutions excluded GCA_* as false-positive-prone for 'primary data citation'.",
+    "default_type_prior": "secondary-leaning"
+  }
+}

@@ -1,0 +1,31 @@
+# Physical table mapping — copy to tables.yaml (gitignored) and fill in for your environment.
+# The pipeline code and SQL templates reference ONLY the logical names on the left.
+# Public ORION-DBs tables are pre-filled; everything else is deployment-specific.
+
+# --- inputs you must supply ---
+fulltext_publications:   "your-project.your_dataset.fulltext_publications"   # GROBID-style structured fulltext
+publications_metadata:   "your-project.your_dataset.publications"           # DOI/PMCID/title/authors/year/OA fields
+organizations_metadata:  "your-project.your_dataset.organizations"          # org hierarchy (funder rollups; used by examples/)
+work_dataset:            "your-project.your_workspace"                      # where pipeline tables are written
+
+# --- public inputs (ORION-DBs collection; usable as-is) ---
+datacite_records:        "ds-open-datasets.datacite.records"   # weekly snapshot, not the dated 2025 one
+
+# BQML classifier that stage 69 scores the residue with. Stage 69 only PREDICTS; training is a
+# deliberate manual step (sql/manual/train_type_clf_v1.sql) so a quietly-worse retrain can
+# never ship on its own. May live outside work_dataset.
+type_model:              "YOUR_PROJECT.YOUR_DATASET.mdc_type_clf_v1"
+
+# Reproducibility layer written by stages 72-76 (rule registry, per-citation trace, evidence,
+# release record). Kept separate from work_dataset because it is a published surface.
+srad_dataset:            "your-project.your_srad_dataset"
+
+# --- external source snapshots (load these yourself; see docs/sources.md) ---
+eupmc_text_mined_terms:  "your-project.your_workspace.eupmc_text_mined_terms"
+data_citation_corpus:    "your-project.your_workspace.data_citation_corpus"
+
+# --- gen attribution source gates (stage 66) --- SQL boolean literals, TRUE or FALSE.
+# insdc_attribution is a targeted cache of cited GenBank records, filled by the AWS fetcher;
+# with both FALSE, gen evidence comes from the insdc_provenance lake alone.
+insdc_attribution_enabled: "FALSE"
+insdc_include_protein:     "FALSE"

@@ -1,0 +1,6 @@
+tables.yaml
+*.pyc
+__pycache__/
+prefilter_ckpt/
+sources_tmp/
+.DS_Store
