@@ -2,7 +2,7 @@
 
 This repository holds the code that builds the Open Data Citations dataset: links from scholarly articles to the datasets they cite, found by text-mining full text for dataset DOIs and repository accession IDs (GenBank, PDB, UniProt, GEO and others). Each link is classified as **Primary** (data generated for the citing article), **Secondary** (data reused) or left **Unclassified** where the evidence is not strong enough. The methods follow the top solutions of the [Make Data Count Kaggle competition](https://www.kaggle.com/competitions/make-data-count-finding-data-references).
 
-Built by Digital Science research staff in collaboration with Make Data Count, on Dimensions. Experimental, not a Dimensions product. The public dataset is available on BigQuery via [ORION-DBs](https://orion-dbs.community/).
+Powered by Dimensions, the pipeline has been built by Digital Science research staff in collaboration with Make Data Count. The public dataset is available on BigQuery via [ORION-DBs](https://orion-dbs.community/).
 
 ## What it produces
 
