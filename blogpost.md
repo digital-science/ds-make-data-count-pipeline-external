@@ -26,7 +26,7 @@ Beyond the twist, the five solutions converged on a remarkably consistent archit
 
 6. **Know your false-positive families.** GCA\_ genome assemblies, HGNC/GO/RRID ontology-style identifiers, dbSNP rs-numbers, and unfiltered GenBank-style letter+digit codes (which collide with grant numbers and specimen codes) tripped up every team that kept them unfiltered.
 
-## What we changed at for the Digital Science Make Data Count Dataset
+## What we changed for the Digital Science Make Data Count Dataset
 
 By using the full-text GROBID representations of tens of millions of articles in BigQuery, plus the Dimensions Analytics API's full-text search, we were able to apply the winners' results at corpus scale. The API search decides *which* articles are worth the expensive full-text scan: we search it for every DataCite DOI prefix and only scan the candidate articles that come back.
 
