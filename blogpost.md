@@ -78,7 +78,7 @@ Data-availability statements — where data citations most often sit — are fai
 
 Other limitations we publish alongside the data:
 
-- **Europe PMC text-mined terms.** The upstream files have been empty since before 4 September. The release uses the last good copy (loaded 21 September), so annotations for five accession families are stale. There is also no licence statement at the download location. Both are open with Europe PMC.
+- **Europe PMC text-mined terms.** The upstream files were empty since before 4 September, until Europe PMC republished with real content on 6 October. This release still used the last good copy (loaded 21 September); the November release will be the first to read fresh data. There is also no licence statement at the download location — a separate issue, still open with Europe PMC.
 - **GenBank residue.** 332,092 GenBank citations remain Unclassified. About 242,000 accessions sit in records with neither submitters nor a publication link — largely EST, GSS and patent records from the 1990s and 2000s. No source we can reach holds their attribution.
 - **Dataset DOIs.** 282,312 DOI citations (20%) remain Unclassified, mostly reference-list mentions with no location signal. This should improve with the GROBID upgrade described above: recovering the availability statements older models miss gives many of these mentions the location they lack.
 
@@ -88,6 +88,8 @@ The pipeline is built, benchmarked and runs unattended. A monthly refresh on AWS
 
 1. **A public dataset** — every data citation from an article with a DOI, in six plain columns: the article's DOI, the dataset's DOI or accession id, which of the two it is, the repository, the citation type (Primary, Secondary or Unclassified) and the release. It can be joined from either end: by article, or by dataset. It is on BigQuery via the community-run [ORION-DBs](https://orion-dbs.community/collections/ds-open-datasets/) catalogue and refreshed monthly, released under a CC0 licence. The full research-grade dataset, including how each citation was decided and the sentences behind it, is available to scientometrics researchers through [Digital Science's SRAD programme](https://www.digital-science.com/blog/2025/07/introducing-srad-scientometric-researcher-access-data-program/).
 2. **An invitation to peer review.** Our methodology is publicly available on [GitHub](https://github.com/digital-science/ds-make-data-count-pipeline-external), and validation data is available via our [SRAD programme](https://www.digital-science.com/blog/2025/07/introducing-srad-scientometric-researcher-access-data-program/). What could we improve?
+
+Finally, not all data citations are cleanly identified. For approaches exploring how we discover emergent data usage communities see.
 
 ---
 
