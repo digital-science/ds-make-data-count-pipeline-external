@@ -7,6 +7,18 @@ line-broken variant ("10. 1594"): PDFs sometimes break a DOI after "10." and the
 index tokenizes the broken form so the intact-form search cannot match it. In our validation
 this recovered ~9% of otherwise-missed articles at high-recall repositories.
 
+IGSN prefixes are included here (added 2026-10) even though the DOI *matching* universe
+(sql/10_snapshot_dedup.sql) still excludes them. This search is what decides which articles
+get their full text fetched at all -- excluding IGSN here meant IGSN-citing articles were
+never fetched, regardless of any fix downstream (measured: 1,912 publications match these
+prefixes via this exact search, 2015-2026, none of which were reaching the candidate pool).
+Running the search costs nothing extra (free API calls against an existing subscription); the
+real cost this project avoids is the ~$46 BigQuery fulltext scan in stage 31, which already
+runs as a flat-cost operation on the full candidate set every month regardless -- adding ~1,912
+more IDs to an already-scheduled scan is free, whereas a *separate* one-off GROBID run just for
+these IDs would not be. See sql/45_igsn_universe.sql for why the matching universe itself stays
+separate and small rather than also including IGSN.
+
 Checkpoints each batch to ./prefilter_ckpt/ so restarts never repeat completed batches.
 Output: ${work_dataset}.doi_candidates (one column: id).
 """
@@ -33,7 +45,7 @@ prefixes = client.query(f"""
     FROM `{cfg['datacite_records']}`
          LEFT JOIN UNNEST(attributes.alternateIdentifiers) alt_ids
     GROUP BY 1
-    HAVING COUNTIF(alt_ids.alternateIdentifierType IN ('IGSN','arXiv')) = 0
+    HAVING COUNTIF(alt_ids.alternateIdentifierType = 'arXiv') = 0
 """).to_dataframe().doi_prefixes
 print(f'{len(prefixes):,} DOI prefixes', flush=True)
 
