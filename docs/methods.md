@@ -277,6 +277,15 @@ The accession path is shorter but similar. Take the sentence *"The ST RNA-seq da
 
 **Batched matching** (stage `41` + runner loop `42`) — tokens join against the 96M-DOI universe in 5M slices: prefix must match exactly, and the real DOI's tail must be a prefix of the token's reconstructed tail (trailing punctuation and following text make exact tail equality too strict).
 
+**IGSN sample identifiers** (stages `45`–`47`) — physical-sample identifiers (rock cores, sediment samples, museum specimens) were excluded from the main DOI universe above (stage `10`'s `HAVING` clause) until October 2026: at 9.4M records (6.9% of all DataCite, concentrated in ~19 registrant prefixes — SESAR and Geoscience Australia dominant), including them grew the batched matching loop enough to make it noticeably slower, for a citation volume nobody had measured. Since January 2023, IGSN e.V.'s partnership with DataCite means an IGSN **is** a DataCite DOI (e.g. `10.58052/IEAWL0054` under SESAR's prefix), typically written in text with an `IGSN:`/`igsn:` label in front — a label the main token-extraction stage (`40`) doesn't recognise, so even papers that do cite one would have been invisible to it regardless of the universe exclusion.
+
+Rather than grow the 96M-DOI universe and its batch loop by 9.4M rows for an unmeasured population, IGSN gets its own small, separate path:
+- **Stage `45`** builds a small IGSN-only universe (just the excluded 9.4M records).
+- **Stage `46`** filters sentences down to the rare subset that actually contains `igsn` *before* doing any string splitting — on the corpus at the time of writing, 1.83B sentences filtered down to 12 candidates — then normalizes `IGSN:`/`igsn:` to `doi:` the same way stage `40` already normalizes `DOI:`, so the bare citation form (`IGSN:10.58052/...`, no URL) is found at all.
+- **Stage `47`** joins that small candidate set against the small universe — cheap by construction, since the join is driven by the tiny side — and inserts verified matches straight into `datacite_sentence_matches` below, so everything downstream (dedup, reference remapping, typing, classification) treats an IGSN citation exactly like any other DOI citation with no further changes.
+
+Measured on first deployment: 12 raw candidates, 5 verified (the rest were bibliography fragments and truncated table entries that correctly failed verification against the real registry — the same "a candidate only counts if it's actually found" discipline the DOI and accession arms already apply).
+
 ### `datacite_sentence_matches`
 
 <details><summary><i>2,497,304 rows at the August 2026 reference run — click for schema</i></summary>
