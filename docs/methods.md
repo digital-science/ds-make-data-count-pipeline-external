@@ -975,15 +975,48 @@ The product view supports funder-level data-flow analysis in a single query (`ex
 1. **FROM** — citations *made by* the funder's papers: Primary rows are data its research generated; Secondary rows are data it reused.
 2. **TO** — the funder's Primary pairs define its *generated datasets*; Secondary citations of those datasets from other papers measure reuse, split by whether the reusing paper is itself funder-supported (internal) or not (external spillover).
 
-Run against NIH (including all child institutes) at the August 2026 reference state:
+Every row is also labelled with what kind of thing was cited, so the results break down by type rather than lumping accessions and DOIs together:
 
-| Direction | Slice | Citations | Papers |
-|---|---|---|---|
-| FROM | generated (Primary, accession + DOI) | 231,083 | ~100k |
-| FROM | reused (Secondary, accession + DOI) | 1,176,992 | ~280k |
-| TO | reuse of NIH-generated datasets | 412,375 | ~220k reusing papers, 51,106 datasets |
+- **`data_class`** — the DataCite `resourceTypeGeneral` of a DOI (Dataset, Software, Collection, Text, …), or `Accession` for a repository accession number. A DOI with no DataCite record is `Unknown DOI type`.
+- **`scope`** — `data type` when `is_data_type` is true (Dataset, Software, Collection, Image, Model, … and every accession), otherwise `other DataCite record` (Text, JournalArticle, Report, Service, Award, …).
 
-The headline statistic the TO direction yields: **59% of the reuse of NIH-generated datasets comes from papers outside NIH funding** — a data-sharing spillover measurement with an evidence trail behind every contributing row. Swapping one GRID identifier profiles any funder; adding `family_or_repo` and year grouping turns it into repository league tables and trends.
+Run against NIH (including all child institutes) at release 202610. Citation counts are rows; the paper counts in the query output are distinct per row and cannot be summed across rows.
+
+**Data types** (`scope = 'data type'`)
+
+| data_class | FROM: generated (Primary) | FROM: reused (Secondary) | TO: reuse of NIH-generated | of which external |
+|---|---|---|---|---|
+| Accession | 234,881 | 1,278,408 | 411,567 | 59% |
+| Dataset | 21,872 | 8,418 | 7,094 | 61% |
+| DataPaper | 358 | 1,405 | 749 | 29% |
+| Software | 4,544 | 2,145 | 697 | 43% |
+| Collection | 1,281 | 282 | 225 | 51% |
+| Image | 2,492 | 91 | 49 | 31% |
+| Model, Audiovisual, Workflow, ComputationalNotebook, other | 848 | 79 | 66 | — |
+| **Total** | **266,276** | **1,290,828** | **420,447** | **59%** |
+
+Accessions carry the headline: 98% of reuse of NIH-generated data is of repository accession numbers. Among DOI-typed records, `Dataset` is the large class, but `DataPaper` and `Software` reuse is mostly *internal* (29% and 43% external), where reuse of datasets and accessions is mostly external. Treat the small classes as indicative: several rest on a few dozen rows.
+
+The headline statistic the TO direction yields: **59% of the reuse of NIH-generated data comes from papers outside NIH funding** — a data-sharing spillover measurement with an evidence trail behind every contributing row. (An earlier version of this example, run at the August 2026 reference state, reported the same 59% external share, with accessions and DOIs combined and no per-type breakdown.)
+
+**Other DataCite records** (`scope = 'other DataCite record'`) — a separate analysis, deliberately kept out of the headline above. NIH papers make 4,677 Primary and 5,152 Secondary citations to DataCite DOIs that are not data types, and 2,183 citations reuse NIH-"generated" records of this kind, 66% from outside NIH.
+
+| data_class | FROM: Primary | FROM: Secondary | TO: reuse | of which external |
+|---|---|---|---|---|
+| Text | 2,193 | 3,377 | 1,056 | 65% |
+| JournalArticle | 1,011 | 818 | 503 | 55% |
+| Other | 801 | 345 | 153 | 67% |
+| StudyRegistration | 454 | 37 | 41 | 29% |
+| Unknown DOI type | 51 | 222 | 268 | 91% |
+| everything else (Book, ConferencePaper, Report, Service, Preprint, …) | 167 | 353 | 162 | — |
+
+These are not data sharing in the ordinary sense, and the two directions mean different things:
+
+- **Primary** is mostly authors' own deposits that the depositor typed generically: 82% of NIH's non-data Primary citations to DOIs that have a DataCite record sit in three general-purpose repositories (`cos.osf` 38%, `figshare.ars` 24%, `cern.zenodo` 20%). A 14-record sample showed analysis code, supplementary files, simulation code, OSF projects and pre-registrations. About 95% of the Text, JournalArticle, Other and StudyRegistration rows were promoted by metadata similarity (`metadata_match`), and the type label is whatever the depositor chose, not a judgement about the content.
+- **Secondary** is spread across many institutional repositories (the largest, Columbia, UMass and ZB MED, are each under 10%). A 14-record sample was mostly scholarly articles, reviews, questionnaires and software-methods papers, with a couple of oddities (a computing environment, a grant-style record). That is reference citation, not data reuse.
+- **TO reuse** looks the same. The most-reused NIH "generated" records of this kind were articles, reviews and survey guides held in institutional repositories, so the "reuse" is other papers citing a scholarly work.
+
+Use `scope = 'data type'` for any claim about data sharing; use this section to size how much citation activity points at DataCite records that are not datasets. Swapping one GRID identifier profiles any funder; adding `family_or_repo` and year grouping turns it into repository league tables and trends.
 
 ## Glossary
 
