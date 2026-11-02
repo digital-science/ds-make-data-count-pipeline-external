@@ -43,7 +43,8 @@ SELECT
     WHEN v.rule_applied IN ('metadata_match','metadata_match_not_first','popular_dataset',
                             'multi_cited_not_first') THEN 'metadata_similarity'
     WHEN v.rule_applied = 'llm_primary' THEN 'llm'
-    WHEN v.rule_applied IN ('regex_invalid','band_notation','glycan_notation','reference_db_prior','kaggle_samn_rule',
+    WHEN v.rule_applied IN ('regex_invalid','band_notation','glycan_notation','reference_db_prior','reference_db_prior_unmeasured',
+                            'hpa_reagent_id','kaggle_samn_rule',
                             'kaggle_emdb_rule','kaggle_samn_rule_not_first',
                             'kaggle_emdb_rule_not_first') THEN 'family_prior'
     WHEN STARTS_WITH(v.rule_applied, 'cue_') THEN 'mention_cue'

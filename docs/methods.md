@@ -10,7 +10,13 @@ Stages appear in dependency order. Each section says **what goes in, what comes 
 
 Row counts in the schema panels are labelled with the run they came from. Most are from the August 2026 reference run. They show order of magnitude, not current state; tables restated since carry their own date.
 
-**Current release: 202610** (built 2 October 2026). **8,751,192 citations across 2,081,909 articles and 4,508,541 distinct datasets; 92.14% classified** as Primary or Secondary (687,407 Unclassified). 95.04% of citations are in open-access articles.
+**Current release: 202611** (built 2 November 2026). **8,827,044 citations across 2,104,669 articles and 4,542,467 distinct datasets; 91.87% classified** as Primary or Secondary (717,280 Unclassified). 95.64% of citations are in open-access articles. These are the figures for the public table, which applies the rules below; the full SRAD citation table is slightly larger.
+
+**New Primary rule from 202611 (GenBank).** `author_initial_date_primary` (stage 66): where the older surname rule left a GenBank citation undecided, the paper is called Primary if at least two of its authors match the record's submitters on surname (diacritics folded) and first initial, and the record was deposited within a year of publication. It recovers the short and accented surnames the four-letter rule could not see. In a scratch run it fires on about 13,000 pairs; against labelled decisions its precision proxy is 97.1%. One shared author is not enough and does not ship.
+
+**New exclusion rule from 202611 (GenBank).** `non_data_context` (stage 66): about half of the GenBank candidates that no rule can decide are not sequence citations at all but grant numbers (`CA077263`), catalogue and lot numbers, ethics approvals and sample ids that happen to share the shape of an old EST accession. Such a pair is removed from the product when the record has no submitter data, no mention of it is in a table or figure, no mention sentence contains a sequence cue word (GenBank, accession, EST, mRNA, cDNA, clone, sequence, deposit, NCBI, DDBJ), and either the accession is one letter plus five digits and every mention is in the article body or in the acknowledgements and funding text, or it is two letters plus six digits and every mention is in the acknowledgements and funding text. It removes about 77,700 pairs. Each population it touches was sampled separately and judged by Claude, not hand-labelled: 90 of 90 pairs that no rule had classified, 85 of 86 that the model would otherwise have called reuse, 34 of 35 that a text-cue rule called reuse, and 58 of 58 that a text-cue rule called Primary (those were grant and reagent numbers wrongly credited as originating datasets). Mentions inside tables, where about 88% were real EST lists, and body mentions of the two-letter shape (about 64%) are not excluded and stay Unclassified.
+
+**Public-release rules from 202611.** Following external review, the public table differs from the full SRAD citation table in three ways. (1) Self-citations are dropped: a record is never a data citation of itself (6,743 rows in 202610). (2) The table has exactly one row per (article DOI, dataset id); where two Dimensions records for one DOI were classified differently, the row is `Unclassified` (5 pairs in 202610). (3) Reference-database citations are typed from a measured prior, not a blanket one. On 2026-10-16 we judged 50 random rows from each of UniProt, RefSeq, Ensembl, Pfam and Cellosaurus (250 rows): all 250 were reuse, so those five families stay Secondary (rule `reference_db_prior`, 1.56 million rows). The other secondary-leaning families (InterPro, Reactome, ChEMBL, Rfam and similar, about 41,000 rows) were never measured and are `Unclassified` (`reference_db_prior_unmeasured`). Human Protein Atlas ids are excluded (`hpa_reagent_id`, 21,435 rows): 47 of 50 sampled were antibody catalogue numbers, not data. The prior is never used to infer Primary. A paper is only called Primary for a reference database where the database's own record shows it is the first description of the entry. That is built for Cellosaurus only (`repo_cellosaurus_first_ref`, 151 pairs in 202610 data): the citing paper must be in the cell line's reference list, be the only reference at the line's earliest year, and the line must have no undated reference (patent, datasheet); antibody-validation studies are excluded because they use commercially sourced knockout lines. Of 427 pairs where the paper appears in the list at all, only these 151 qualify. No rule exists for the other reference databases, and the 2026-10-16 measurements say none is worth building: in 1,500 sampled UniProt pairs the citing paper was in the entry's reference list 10 times (0.7%), always as a late reference adding function or variant annotation; in 587 sampled RefSeq pairs it was in the record's references 7 times (1.2%), and the 3 where it was listed first were gene records (NM_) where the first listed reference is not the originator. Those rows stay Secondary. Pfam/InterPro were not measured. SRAD keeps every row with its `rule_applied`.
 
 | Arm | Citations | Primary | Secondary | Unclassified | Classified |
 |---|---|---|---|---|---|
@@ -901,13 +907,15 @@ Each release is scored against two community gold sets: the Kaggle MDC competiti
 - **agreement**: of the gold pairs we classify (Primary or Secondary), the share where our label matches the gold label;
 - **coverage**: of all gold pairs present in the released data, the share we classify at all.
 
-Each (article, dataset) pair is counted once. The figures are computed when the release is built, from the released data, and stored in the release record (§7), so they cannot drift from the release they describe. Release 202610:
+Each (article, dataset) pair is counted once. The figures are computed when the release is built, from the released data, and stored in the release record (§7), so they cannot drift from the release they describe. Release 202611:
 
 | Gold set | Pairs | Agreement | Coverage |
 |---|---|---|---|
-| **Both combined** (pairs the two sets label differently are dropped) | **1,061** | **0.9616** | **0.9076** |
-| Kaggle MDC competition labels | 463 | 0.9505 | 0.7862 |
-| rdmpage labels | 1,056 | 0.9594 | 0.9100 |
+| **Both combined** (pairs the two sets label differently are dropped) | **1,048** | **0.9584** | **0.8483** |
+| Kaggle MDC competition labels | 452 | 0.9485 | 0.6438 |
+| rdmpage labels | 1,043 | 0.9559 | 0.8476 |
+
+**Why coverage fell from 202610 (combined 0.9076, Kaggle 0.7862, rdmpage 0.9100).** No gold pair changed label. The public-release rules above took pairs out of the scored set: reference-database pairs from families without a measured prior became Unclassified (62 Kaggle and 64 rdmpage pairs), and Human Protein Atlas ids were excluded (11 Kaggle and 13 rdmpage pairs). The gold sets label almost all of those pairs Secondary, so they were mostly right, and removing them lowers agreement by 0.002 to 0.004 as well as coverage. Pairs still classified kept the same label in both releases.
 
 The combined figure is the headline. **33 pairs** in the released data appear in both gold sets with different labels. They are dropped rather than tie-broken, because choosing between them would be inventing ground truth. (Across the raw gold sets the disagreement is larger: 69 of the 634 pairs present in both; the 33 are those that reach the released data.) No classifier can agree with both sets on those pairs, so agreement of ~0.96 is close to the practical ceiling.
 
@@ -1023,7 +1031,7 @@ Use `scope = 'data type'` for any claim about data sharing; use this section to 
 | Term | Meaning |
 |---|---|
 | **Primary / Secondary** | Data generated *for* the citing article vs data reused from an existing source — the competition's (and this pipeline's) classification target. |
-| **Accession ID** | A repository-native identifier (GSE…, SAMN…, PDB 4-char codes) — 84% of citations in release 202610; the rest are dataset DOIs. |
+| **Accession ID** | A repository-native identifier (GSE…, SAMN…, PDB 4-char codes) — 84% of citations in release 202611; the rest are dataset DOIs. |
 | **Prefilter** | Using the full-text *search index* to find candidate articles cheaply, so the expensive full-text scan reads only articles likely to contain a citation. |
 | **Sentence explosion** | Flattening structured full text into one row per sentence with a section-location label. |
 | **Sweep** | One full pass of the expensive full-text stages (join + explosion + matching), paid per release. |

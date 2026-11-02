@@ -52,4 +52,23 @@ FROM (
   FROM ranked r JOIN earliest e USING (family, accession)
   WHERE r.rn > 1 AND NOT (r.norm_title = e.norm_title AND r.norm_title != '')) d
 WHERE t.publication_id = d.publication_id AND t.accession = d.accession
+  AND t.family = d.family AND t.type = 'Primary';
+
+-- repo_author_initial_date_primary
+UPDATE `${work_dataset}.accession_citations_typed` t
+SET type = 'Secondary', rule_applied = 'repo_author_initial_date_primary_not_first'
+FROM (
+  WITH prim AS (
+    SELECT DISTINCT t.publication_id, t.accession, t.family, p.year,
+           REGEXP_REPLACE(LOWER(IFNULL(p.title.preferred,'')), r'[^a-z0-9]', '') norm_title
+    FROM `${work_dataset}.accession_citations_typed` t
+    JOIN `${publications_metadata}` p ON p.id = t.publication_id
+    WHERE t.type = 'Primary' AND t.rule_applied = 'repo_author_initial_date_primary'),
+  ranked AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY family, accession
+               ORDER BY year IS NULL, year, publication_id) rn FROM prim),
+  earliest AS (SELECT family, accession, norm_title FROM ranked WHERE rn = 1)
+  SELECT DISTINCT r.publication_id, r.accession, r.family
+  FROM ranked r JOIN earliest e USING (family, accession)
+  WHERE r.rn > 1 AND NOT (r.norm_title = e.norm_title AND r.norm_title != '')) d
+WHERE t.publication_id = d.publication_id AND t.accession = d.accession
   AND t.family = d.family AND t.type = 'Primary'

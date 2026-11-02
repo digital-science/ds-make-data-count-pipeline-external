@@ -11,7 +11,7 @@ A new release each month (06:00 UTC on the 2nd), rebuilt from a full pass over t
 - **Released data** — one row per (article, dataset) citation, in six columns: article DOI, dataset id (a DOI or an accession id), which kind of id it is, the repository, the citation type (Primary / Secondary / Unclassified) and the release. Keyed from both ends, so it can be joined by article or by dataset. Citations from articles without a DOI are not included.
 - **Reproducibility layer** — for every citation: which rule decided it, that rule's definition and measured precision, where in the article each mention sits, the models and prompts used, and the release's own benchmark scores. Mention sentence text is included for open-access articles only.
 
-Release 202610 (October 2026): 8,751,192 citations from 2,081,909 articles to 4,508,541 distinct datasets; 92.14% classified. Against two community gold sets combined (1,061 article-dataset pairs) it agrees on 0.9616 of the pairs it classifies and classifies 0.9076 of them. [docs/methods.md](docs/methods.md) explains how, and what the benchmark does not cover.
+Release 202611 (November 2026): 8,827,044 citations from 2,104,669 articles to 4,542,467 distinct datasets; 91.87% classified. Against two community gold sets combined (1,048 article-dataset pairs) it agrees on 0.9584 of the pairs it classifies and classifies 0.8483 of them. [docs/methods.md](docs/methods.md) explains how, and what the benchmark does not cover.
 
 ## Running it
 

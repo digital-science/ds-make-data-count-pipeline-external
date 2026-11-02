@@ -46,7 +46,7 @@ The winners' biggest lesson — *measure recall against external ground truth be
 
 PDB identifiers need a different check. Chromosome-band notation ("7q22.1", "19q13.2") and glycan notation ("Galα1-3Gal") contain strings that are valid PDB IDs, so a format check cannot catch them. The pipeline reads the surrounding text instead and excludes about 12,100 such mentions.
 
-**Where that leaves us.** The latest release (October 2026) holds **8.75 million data citations across 2.08 million articles and 4.5 million distinct datasets**. 92% are classified Primary or Secondary. The public release gives each citation's article, dataset, repository and classification. A reproducibility layer (accessible via [Digital Science's SRAD programme](https://www.digital-science.com/blog/2025/07/introducing-srad-scientometric-researcher-access-data-program/)) records which rule decided each citation, that rule's definition and measured precision, and where in the article the mention sits — plus the sentence itself for open-access articles.
+**Where that leaves us.** The latest release (November 2026) holds **8.83 million data citations across 2.10 million articles and 4.5 million distinct datasets**. 92% are classified Primary or Secondary. The public release gives each citation's article, dataset, repository and classification. A reproducibility layer (accessible via [Digital Science's SRAD programme](https://www.digital-science.com/blog/2025/07/introducing-srad-scientometric-researcher-access-data-program/)) records which rule decided each citation, that rule's definition and measured precision, and where in the article the mention sits — plus the sentence itself for open-access articles.
 
 ## How it measures up
 
@@ -56,11 +56,11 @@ We therefore report two plainer measures against two gold sets. *Agreement* is t
 
 | gold set | pairs | agreement | coverage |
 | --- | --- | --- | --- |
-| Kaggle competition labels | 463 | 0.951 | 0.786 |
-| Community-corrected labels | 1,056 | 0.959 | 0.910 |
-| Both combined | 1,061 | 0.962 | 0.908 |
+| Kaggle competition labels | 452 | 0.948 | 0.644 |
+| Community-corrected labels | 1,043 | 0.956 | 0.848 |
+| Both combined | 1,048 | 0.958 | 0.848 |
 
-Where we give a label, it matches both label sets about equally often; the difference is coverage. The two gold sets disagree with each other on 33 shared pairs, which are dropped from the combined score — so agreement of about 0.96 is close to the practical ceiling.
+Where we give a label, it matches both label sets about equally often; the difference is coverage. Coverage is lower than last month's release because this release leaves reference-database families we have not measured (InterPro, Reactome, ChEMBL and similar) Unclassified and excludes Human Protein Atlas antibody ids; no gold pair changed label. The two gold sets disagree with each other on 33 shared pairs, which are dropped from the combined score — so agreement of about 0.96 is close to the practical ceiling.
 
 The benchmark has one blind spot we should state plainly. The gold sets contain almost none of the GenBank protein citations and few GenBank nucleotide ones, so GenBank citations decided from repository records rest on rule-level evidence, published in the reproducibility layer, rather than on the benchmark.
 

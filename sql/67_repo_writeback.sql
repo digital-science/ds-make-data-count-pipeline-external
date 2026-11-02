@@ -39,8 +39,12 @@ WHERE t.publication_id = d.publication_id AND t.accession = d.accession
 -- gen family via the provenance lake. 'no_metadata_yet' is excluded alongside 'undecided':
 -- absence from the lake is recorded as evidence in the table but must not overwrite a decision.
 UPDATE `${work_dataset}.accession_citations_typed` t
-SET type = CASE WHEN d.decision IN ('linked_pub_primary','author_date_primary')
-                THEN 'Primary' ELSE 'Secondary' END,
+SET type = CASE WHEN d.decision IN ('linked_pub_primary','author_date_primary',
+                                    'author_initial_date_primary')
+                THEN 'Primary'
+                -- Not a sequence citation at all (grant / catalogue / ethics id): see stage 66.
+                WHEN d.decision = 'non_data_context' THEN 'Excluded'
+                ELSE 'Secondary' END,
     rule_applied = CONCAT('repo_', d.decision)
 FROM (
   SELECT publication_id, accession,
@@ -52,4 +56,19 @@ FROM (
   GROUP BY 1, 2
 ) d
 WHERE t.publication_id = d.publication_id AND t.accession = d.accession
-  AND t.type != 'Excluded'
+  AND t.type != 'Excluded';
+
+-- Cellosaurus: promote to Primary only where the line's own record shows this paper is its first
+-- description (stage 66, cellosaurus_evidence). Touches only rows still carrying the family
+-- prior (rule_applied = 'reference_db_prior'), so no earlier evidence-based decision is
+-- overwritten, and never an Excluded row. One paper per line by construction: the matched
+-- reference must be the only one at the line's earliest year.
+UPDATE `${work_dataset}.accession_citations_typed` t
+SET type = 'Primary', rule_applied = 'repo_cellosaurus_first_ref'
+FROM (
+  SELECT publication_id, accession FROM `${work_dataset}.cellosaurus_evidence`
+  WHERE decision = 'first_ref_primary'
+) d
+WHERE t.publication_id = d.publication_id AND t.accession = d.accession
+  AND t.family = 'cellosaurus' AND t.rule_applied = 'reference_db_prior'
+  AND t.type = 'Secondary';

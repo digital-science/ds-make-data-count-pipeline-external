@@ -60,14 +60,15 @@ pop AS (
   FROM `${work_dataset}.accession_citations_typed` GROUP BY 1, 2
 ),
 base AS (
-  -- reference_db_prior rows are dropped: that rule is a blanket family default, not evidence,
+  -- reference_db_prior (and _unmeasured) rows are dropped: that rule is a blanket family default, not evidence,
   -- so keeping them would teach the model the prior instead of the signal.
   SELECT DISTINCT t.publication_id, t.accession, t.family, t.type, t.rule_applied,
     EXISTS (SELECT 1 FROM `${work_dataset}.accession_contexts` x
             WHERE x.publication_id = t.publication_id AND x.accession = t.accession)
       AS verified_in_text
   FROM `${work_dataset}.accession_citations_typed` t
-  WHERE t.type != 'Excluded' AND t.rule_applied != 'reference_db_prior'
+  WHERE t.type != 'Excluded'
+    AND t.rule_applied NOT IN ('reference_db_prior', 'reference_db_prior_unmeasured')
 )
 SELECT b.*,
   f.fp_risk, f.default_type_prior,

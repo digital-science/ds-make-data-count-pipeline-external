@@ -151,6 +151,11 @@ CREATE TABLE IF NOT EXISTS `${work_dataset}.insdc_attribution` (
   ref_authors STRING);
 ALTER TABLE `${work_dataset}.insdc_attribution` ADD COLUMN IF NOT EXISTS ref_authors STRING;
 
+-- Name normaliser for the surname+initial match below: strips diacritics (Pérez = Perez, Ágoston =
+-- Agoston) and every non-letter, lowercased.
+CREATE TEMP FUNCTION _norm(s STRING) AS (
+  REGEXP_REPLACE(REGEXP_REPLACE(NORMALIZE(LOWER(IFNULL(s, '')), NFD), r'\p{M}', ''), r'[^a-z]', ''));
+
 CREATE OR REPLACE TABLE `${work_dataset}.gen_evidence`
 CLUSTER BY accession AS
 WITH lake_rows AS (
@@ -176,7 +181,10 @@ pairs AS (
   SELECT t.publication_id, t.accession, t.type, t.rule_applied,
          p.pmid, p.year pub_year,
          ARRAY(SELECT LOWER(au.last_name) FROM UNNEST(p.authors) au
-               WHERE au.last_name IS NOT NULL AND LENGTH(au.last_name) >= 4) au_names
+               WHERE au.last_name IS NOT NULL AND LENGTH(au.last_name) >= 4) au_names,
+         ARRAY(SELECT AS STRUCT _norm(au.last_name) ln, SUBSTR(_norm(au.first_name), 1, 1) fi
+               FROM UNNEST(p.authors) au
+               WHERE au.last_name IS NOT NULL AND au.first_name IS NOT NULL) au_ini
   FROM `${work_dataset}.accession_citations_typed` t
   JOIN `${publications_metadata}` p ON p.id = t.publication_id
   WHERE t.family = 'gen' AND t.type != 'Excluded'
@@ -184,6 +192,16 @@ pairs AS (
     AND NOT REGEXP_CONTAINS(t.accession, r'^[SED]R[APRSXZ]\d{6,}$')
     -- Skip pairs a repo rule already decided, so re-running is cheap and idempotent.
     AND t.rule_applied NOT LIKE 'repo_%'
+),
+-- Where, and how, each pair's accession is mentioned in the article (for non_data_context below).
+ctx AS (
+  SELECT publication_id, UPPER(accession) acc,
+         LOGICAL_AND(REGEXP_CONTAINS(location, r'^(acknowledgement|funding)_')) all_ack,
+         LOGICAL_AND(location IN ('body_sentences', 'body_titles')) all_body,
+         LOGICAL_OR(REGEXP_CONTAINS(location, r'^(tables|graphics)')) has_table,
+         LOGICAL_OR(REGEXP_CONTAINS(IFNULL(sentence, ''),
+           r'(?i)genbank|accession|\bESTs?\b|mRNA|cDNA|clone|sequenc|deposit|NCBI|INSDC|\bENA\b|DDBJ')) cue
+  FROM `${work_dataset}.accession_contexts` GROUP BY 1, 2
 )
 SELECT pr.publication_id, pr.accession,
   CASE
@@ -219,6 +237,89 @@ SELECT pr.publication_id, pr.accession,
          AND SAFE_CAST(l.dep_year AS INT64) IS NOT NULL
          AND ABS(SAFE_CAST(l.dep_year AS INT64) - pr.pub_year) <= 1 THEN 'author_date_primary'
     WHEN SAFE_CAST(l.dep_year AS INT64) < pr.pub_year - 1 THEN 'deposit_precedes_secondary'
+    -- author_initial_date_primary (added 2026-10-16). The surname-only rule above ignores surnames
+    -- under 4 letters (Li, Wu, Xu, Lu, Liu, Sun, Han ...), which are the commonest surnames in
+    -- the submitters of newly deposited sequences, and does not fold diacritics. Here a citing
+    -- author matches a submitter on normalised surname AND first initial, and TWO distinct
+    -- authors must match. One shared 'Li,X.' is far too weak; two is the paper's own group.
+    -- Measured against the labelled decisions (deposit within a year of publication, new
+    -- matches only): 8,076 linked_pub_primary vs 245 linked_other_secondary = 97.1% precision
+    -- proxy; a single first/last-author match was 95.6% and a single middle-author match
+    -- 82.2%, so neither ships. Only reached by pairs the rules above left 'undecided'.
+    WHEN SAFE_CAST(l.dep_year AS INT64) IS NOT NULL
+         AND ABS(SAFE_CAST(l.dep_year AS INT64) - pr.pub_year) <= 1
+         AND (SELECT COUNT(DISTINCT CONCAT(a.ln, '|', a.fi)) FROM UNNEST(pr.au_ini) a
+              WHERE a.fi != '' AND LENGTH(a.ln) >= 2
+                AND EXISTS (SELECT 1 FROM UNNEST(SPLIT(
+                              REGEXP_REPLACE(IFNULL(l.submit_authors, ''), r'\.,\s*|\s+and\s+', '|'), '|')) x
+                            WHERE _norm(SPLIT(x, ',')[SAFE_OFFSET(0)]) = a.ln
+                              AND SUBSTR(_norm(SPLIT(x, ',')[SAFE_OFFSET(1)]), 1, 1) = a.fi)) >= 2
+         THEN 'author_initial_date_primary'
+    -- non_data_context (added 2026-10-17). The accession is a real record in the lake but carries
+    -- no submitter data (mostly EST/GSS), so nothing above could decide it -- and about half of
+    -- these candidates are not sequence citations at all: grant numbers (CA077263), catalogue
+    -- and lot numbers (C74986), ethics approvals (R18017), isolate and sample ids (H27846) that
+    -- happen to have an old EST accession's shape. Two shapes carry nearly all of the noise:
+    -- one letter + five digits, and two letters + six digits (the NIH grant-prefix collision).
+    -- Excluded only when EVERY mention is in funding/acknowledgements (either shape) or in the
+    -- article body (one-letter shape only), none is in a table or figure, and no mention
+    -- sentence contains a sequence cue word. Applies to pairs still 'residual' here (stage 69 only labels rows still
+    -- Unclassified, so its ~52k model_secondary pairs are residual at this point in a monthly run)
+    -- and to the cue rules' pairs (cue_secondary, cue_primary, cue_primary_not_first). Each
+    -- population was sampled separately on 2026-10-17: residual 90/90, model_secondary 85/86,
+    -- cue_secondary 34/35, cue_primary(+_not_first) 58/58 non-data. The 58 cue_primary pairs were
+    -- Primary claims on grant and reagent numbers; this removes them. model_primary is not
+    -- covered (11 pairs, none in the rule's shapes). Judged by Claude, not hand-labelled; lower
+    -- confidence bound about 0.94 on the weakest population. Samples: review/genbank_noise_rule_sample_20261017.csv.
+    -- Mentions inside tables and
+    -- the two-letter shape's body mentions are NOT excluded (about 88% and 64% real EST /
+    -- accession lists respectively): they stay Unclassified. Only reached by pairs the rules
+    -- above left 'undecided'. Stage 67 writes this decision back as Excluded.
+    WHEN pr.rule_applied IN ('residual', 'cue_secondary', 'cue_primary', 'cue_primary_not_first', 'model_secondary')
+         AND IFNULL(l.submit_authors, '') = '' AND c.acc IS NOT NULL
+         AND NOT c.has_table AND NOT c.cue
+         AND ((REGEXP_CONTAINS(UPPER(pr.accession), r'^[A-Z][0-9]{5}$') AND (c.all_ack OR c.all_body))
+              OR (REGEXP_CONTAINS(UPPER(pr.accession), r'^[A-Z]{2}[0-9]{6}$') AND c.all_ack))
+         THEN 'non_data_context'
     ELSE 'undecided'
   END decision
 FROM pairs pr LEFT JOIN lake l ON l.acc = UPPER(pr.accession)
+LEFT JOIN ctx c ON c.publication_id = pr.publication_id AND c.acc = UPPER(pr.accession);
+
+-- Cellosaurus path (added 2026-10-16). Source evidence for Primary on cell-line citations.
+--
+-- Cellosaurus lists, per cell line, the publications that describe it. A citing paper is called
+-- Primary only when the line's own record shows it is the FIRST description of the line:
+--   * the paper is in the line's reference list (matched on PubMed id or DOI), and
+--   * its publication year is strictly earlier than every other reference of that line, and
+--   * every reference of the line has a year (patents, datasheets and DOI-only references are
+--     loaded without one, so a line that has any cannot be shown to have a first paper), and
+--   * the paper is not an antibody-validation study. Those use commercially sourced knockout
+--     lines that Cellosaurus registers from the study, which did not derive them.
+-- Everything else in the list is `in_refs_not_first` and stays Secondary. Never inferred from
+-- a title or from the mention text: a paper that merely uses HeLa and appears in HeLa's 80+
+-- references is not its originator. Requires `cellosaurus_refs` (scripts/load_cellosaurus.py).
+CREATE OR REPLACE TABLE `${work_dataset}.cellosaurus_evidence`
+CLUSTER BY accession AS
+WITH r0 AS (
+  SELECT UPPER(accession) acc, pmid, LOWER(doi) doi, ref_year,
+         COUNTIF(ref_year IS NULL) OVER (PARTITION BY accession) n_undated,
+         MIN(ref_year) OVER (PARTITION BY accession) min_year
+  FROM `${work_dataset}.cellosaurus_refs`),
+refs AS (
+  SELECT *, COUNTIF(ref_year = min_year) OVER (PARTITION BY acc) n_at_min_year FROM r0),
+pairs AS (
+  SELECT DISTINCT t.publication_id, t.accession, CAST(p.pmid AS STRING) pmid, LOWER(p.doi) doi,
+         REGEXP_CONTAINS(LOWER(IFNULL(p.title.preferred, '')), r'antibod') AS is_antibody_study
+  FROM `${work_dataset}.accession_citations_typed` t
+  JOIN `${publications_metadata}` p ON p.id = t.publication_id
+  WHERE t.family = 'cellosaurus' AND t.type != 'Excluded')
+SELECT pr.publication_id, pr.accession,
+       CASE WHEN LOGICAL_OR(r.ref_year = r.min_year AND r.n_at_min_year = 1 AND r.n_undated = 0)
+                 AND NOT LOGICAL_OR(pr.is_antibody_study)
+            THEN 'first_ref_primary' ELSE 'in_refs_not_first' END AS decision,
+       MIN(r.ref_year) AS matched_ref_year, MAX(r.min_year) AS line_first_year
+FROM pairs pr
+JOIN refs r ON r.acc = UPPER(pr.accession)
+ AND ((pr.pmid IS NOT NULL AND pr.pmid = r.pmid) OR (pr.doi IS NOT NULL AND pr.doi = r.doi))
+GROUP BY 1, 2;

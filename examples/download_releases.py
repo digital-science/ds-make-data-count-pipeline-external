@@ -8,6 +8,8 @@ What it does
        table to `data_citations_<release>.csv` and checks the row count against the changelog.
 
 Releases you already have are skipped, so it is safe to re-run (monthly, or whenever).
+A download that is interrupted (network drop, laptop sleep, Ctrl-C) RESUMES from where it stopped
+the next time you run the script, and short network failures are retried automatically.
 
 Setup (once)
     pip install google-cloud-bigquery pydata-google-auth
@@ -16,25 +18,30 @@ Run
     python download_releases.py                  # downloads missing releases into ./releases
     python download_releases.py --list           # just show what exists / what you have / what is missing
     python download_releases.py --out-dir /data/mdc
+    python download_releases.py --fresh          # discard any partly-downloaded file and start over
 
 Notes
     - You need a Google account, nothing else: the data is public (CC0) and readable by any signed-in
       Google user. You do NOT need your own Google Cloud project, and the download is free: it
       reads table rows directly and runs no queries.
     - A release is ~8.7 million rows (~650 MB of CSV). Expect roughly 12 minutes per release.
-    - If a download is interrupted, a leftover `*.part` file is ignored and replaced on the next run.
+    - While downloading, a release lives in `*.csv.part` with a small `*.csv.progress` note beside it.
+      Only a complete file whose row count matches the changelog is renamed to `*.csv`.
     - Data: https://console.cloud.google.com/bigquery?project=ds-make-data-count&d=public&page=dataset
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import json
+import os
 import sys
 import time
 from pathlib import Path
 
 try:
     import google.auth
+    import requests
     from google.api_core import exceptions as gexc
     from google.auth.exceptions import DefaultCredentialsError, RefreshError
     from google.cloud import bigquery
@@ -48,6 +55,7 @@ SCOPES = ["https://www.googleapis.com/auth/bigquery"]
 PAGE_SIZE = 50_000          # rows per request
 REQUEST_TIMEOUT = 120       # seconds per request before it is retried
 PROGRESS_EVERY = 500_000    # rows between progress lines
+MAX_ATTEMPTS = 6            # automatic retries (each resumes from the last checkpoint) before giving up
 
 
 def get_credentials(force_login: bool = False):
@@ -68,6 +76,12 @@ def get_credentials(force_login: bool = False):
     # Credentials are cached on disk, so only the first run (or a --login run) opens the browser.
     cache = pydata_google_auth.cache.REAUTH if force_login else pydata_google_auth.cache.READ_WRITE
     return pydata_google_auth.get_user_credentials(SCOPES, credentials_cache=cache)
+
+
+# Failures worth retrying: network drops and Google-side slowness. Permission/not-found errors are not.
+RETRYABLE = (gexc.RetryError, gexc.ServiceUnavailable, gexc.GatewayTimeout, gexc.DeadlineExceeded,
+             gexc.InternalServerError, gexc.TooManyRequests, requests.exceptions.RequestException,
+             ConnectionError, TimeoutError)
 
 
 def explain(err: Exception) -> str:
@@ -102,30 +116,99 @@ def already_have(out_dir: Path, release: str) -> bool:
     return p.exists() and p.stat().st_size > 0
 
 
-def download_release(client: bigquery.Client, rel: dict, out_dir: Path) -> None:
-    release, snapshot, expected = rel["release"], rel["snapshot_table"], rel.get("row_count")
-    final = csv_path(out_dir, release)
-    part = final.with_suffix(".csv.part")
-    # snapshot_table is recorded as "public.data_citations_YYYYMM"; use just the table name
-    table_id = f"{DATA_PROJECT}.{DATA_DATASET}.{snapshot.split('.')[-1]}"
-    table = client.get_table(table_id)
-    columns = [f.name for f in table.schema]
+def _sync(fh) -> int:
+    """Force everything written so far onto disk and return the file size in bytes."""
+    fh.flush()
+    os.fsync(fh.fileno())
+    return os.fstat(fh.fileno()).st_size
 
-    print(f"  downloading {release}: {table.num_rows:,} rows -> {final}")
-    start, n = time.time(), 0
-    with part.open("w", newline="", encoding="utf-8") as fh:
+
+def _write_checkpoint(path: Path, table, rows: int, nbytes: int) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps({"rows": rows, "bytes": nbytes, "num_rows": table.num_rows,
+                               "table_modified": str(table.modified)}))
+    tmp.replace(path)           # atomic: the note is never half-written
+
+
+def _resume_point(part: Path, ckpt: Path, table, fresh: bool) -> tuple[int, int]:
+    """(rows, bytes) of the last intact point in an interrupted download, or (0, 0) to start over.
+
+    Resuming is only safe if the table has not changed since the checkpoint was written, and the
+    partial file is at least as long as the checkpoint says. Anything else starts again.
+    """
+    usable = None
+    if not fresh and part.exists() and ckpt.exists():
+        try:
+            cp = json.loads(ckpt.read_text())
+            if (cp["num_rows"] == table.num_rows and cp["table_modified"] == str(table.modified)
+                    and 0 < cp["bytes"] <= part.stat().st_size and 0 <= cp["rows"] <= table.num_rows):
+                usable = (cp["rows"], cp["bytes"])
+        except (OSError, ValueError, KeyError):
+            usable = None
+    if usable is None:
+        part.unlink(missing_ok=True)
+        ckpt.unlink(missing_ok=True)
+        return 0, 0
+    return usable
+
+
+def _fetch(client, table, columns, part: Path, ckpt: Path, rows_done: int, bytes_done: int, t0: float) -> int:
+    """Append rows from `rows_done` onwards to the partial file, checkpointing every page."""
+    if bytes_done:
+        os.truncate(part, bytes_done)   # drop anything written after the last checkpoint
+    with part.open("a" if bytes_done else "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
-        writer.writerow(columns)
-        for row in client.list_rows(table, page_size=PAGE_SIZE, timeout=REQUEST_TIMEOUT):
+        if not bytes_done:
+            writer.writerow(columns)
+            _write_checkpoint(ckpt, table, 0, _sync(fh))
+        n = rows_done
+        for row in client.list_rows(table, start_index=rows_done, page_size=PAGE_SIZE, timeout=REQUEST_TIMEOUT):
             writer.writerow(["" if v is None else v for v in row.values()])
             n += 1
+            if n % PAGE_SIZE == 0:
+                _write_checkpoint(ckpt, table, n, _sync(fh))
             if n % PROGRESS_EVERY == 0:
-                print(f"    {n:,} rows ({time.time() - start:,.0f}s)")
-    if expected is not None and n != expected:
+                print(f"    {n:,} rows ({time.time() - t0:,.0f}s)")
+        _sync(fh)
+    return n
+
+
+def download_release(client: bigquery.Client, rel: dict, out_dir: Path, fresh: bool = False) -> None:
+    release, snapshot, expected = rel["release"], rel["snapshot_table"], rel.get("row_count")
+    final = csv_path(out_dir, release)
+    part = final.with_name(final.name + ".part")
+    ckpt = final.with_name(final.name + ".progress")
+    # snapshot_table is recorded as "public.data_citations_YYYYMM"; use just the table name
+    table_id = f"{DATA_PROJECT}.{DATA_DATASET}.{snapshot.split('.')[-1]}"
+
+    t0, n = time.time(), 0
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            table = client.get_table(table_id)
+            columns = [f.name for f in table.schema]
+            rows_done, bytes_done = _resume_point(part, ckpt, table, fresh and attempt == 1)
+            if attempt == 1:
+                verb = f"resuming from row {rows_done:,} of" if rows_done else "downloading"
+                print(f"  {verb} {release}: {table.num_rows:,} rows -> {final}")
+            n = _fetch(client, table, columns, part, ckpt, rows_done, bytes_done, t0)
+            break
+        except RETRYABLE as err:
+            if attempt == MAX_ATTEMPTS:
+                raise
+            wait = min(60, 5 * 2 ** (attempt - 1))
+            print(f"  interrupted ({type(err).__name__}); retrying in {wait}s and resuming "
+                  f"(attempt {attempt + 1} of {MAX_ATTEMPTS})")
+            time.sleep(wait)
+
+    if (expected is not None and n != expected) or n != table.num_rows:
         part.unlink(missing_ok=True)
-        raise RuntimeError(f"row count mismatch for {release}: downloaded {n:,}, expected {expected:,}")
+        ckpt.unlink(missing_ok=True)
+        raise RuntimeError(f"row count mismatch for {release}: downloaded {n:,}, expected "
+                           f"{(expected if expected is not None else table.num_rows):,}. "
+                           "The partial file was discarded; re-run to download it again.")
     part.replace(final)         # only a complete, verified file ever gets the final name
-    print(f"  done: {n:,} rows in {time.time() - start:,.0f}s")
+    ckpt.unlink(missing_ok=True)
+    print(f"  done: {n:,} rows in {time.time() - t0:,.0f}s")
 
 
 def main() -> int:
@@ -133,6 +216,7 @@ def main() -> int:
     ap.add_argument("--out-dir", default="releases", help="folder for the CSV files (default: ./releases)")
     ap.add_argument("--list", action="store_true", help="show releases and what you have, then stop")
     ap.add_argument("--login", action="store_true", help="ignore saved credentials and sign in again")
+    ap.add_argument("--fresh", action="store_true", help="discard any partly-downloaded file and start over")
     args = ap.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -162,11 +246,11 @@ def main() -> int:
     failed = 0
     for rel in missing:
         try:
-            download_release(client, rel, out_dir)
+            download_release(client, rel, out_dir, fresh=args.fresh)
         except Exception as err:    # noqa: BLE001
             failed += 1
             print(f"  FAILED {rel['release']}: {explain(err)}", file=sys.stderr)
-    print("Finished." if not failed else f"Finished with {failed} failure(s); re-run to retry them.")
+    print("Finished." if not failed else f"Finished with {failed} failure(s); re-run to resume them.")
     return 1 if failed else 0
 
 
